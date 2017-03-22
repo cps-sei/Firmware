@@ -940,6 +940,8 @@ PX4IO::task_main_trampoline(int argc, char *argv[])
 	g_dev->task_main();
 }
 
+extern bool px4io_done;
+
 void
 PX4IO::task_main()
 {
@@ -1008,7 +1010,9 @@ PX4IO::task_main()
 
 		/* sleep waiting for topic updates, but no more than 20ms */
 		unlock();
+		px4io_done = true;
 		int ret = ::poll(fds, 1, 20);
+		px4io_done = false;
 		lock();
 
 		/* this would be bad... */
