@@ -40,6 +40,7 @@ px4_add_module(
 		drv_pwm_trigger.c
 		drv_input_capture.c
 		drv_led_pwm.cpp
+		snapshot.c
 	DEPENDS
 		platforms__common
 	)

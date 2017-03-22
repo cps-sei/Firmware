@@ -45,6 +45,16 @@
 #include <systemlib/systemlib.h>
 #include <string.h>
 
+#include <stdbool.h>
+#include <syslog.h>
+#include <sched.h>
+#include <unistd.h>
+#include "systemlib/cpuload.h"
+
+extern volatile bool snp_in_reboot;
+extern volatile bool snp_do_save;
+extern volatile bool snp_do_restore;
+
 __EXPORT int reboot_main(int argc, char *argv[]);
 
 static void print_usage(void)
@@ -53,6 +63,10 @@ static void print_usage(void)
 
 	PRINT_MODULE_USAGE_NAME_SIMPLE("reboot", "command");
 	PRINT_MODULE_USAGE_PARAM_FLAG('b', "Reboot into bootloader", true);
+	PRINT_MODULE_USAGE_PARAM_FLAG('d', "Done (stop logging debug info)", true);
+	PRINT_MODULE_USAGE_PARAM_FLAG('s', "Take snapshot (can only be done once)", true);
+	PRINT_MODULE_USAGE_PARAM_FLAG('r', "Restore the snapshot state", true);
+	PRINT_MODULE_USAGE_PARAM_FLAG('w', "Warm reboot", true);
 
 	PRINT_MODULE_USAGE_ARG("lock|unlock", "Take/release the shutdown lock (for testing)", true);
 }
@@ -65,10 +79,63 @@ int reboot_main(int argc, char *argv[])
 	int myoptind = 1;
 	const char *myoptarg = NULL;
 
-	while ((ch = px4_getopt(argc, argv, "b", &myoptind, &myoptarg)) != -1) {
+	while ((ch = px4_getopt(argc, argv, "bdsrw", &myoptind, &myoptarg)) != -1) {
 		switch (ch) {
 		case 'b':
 			to_bootloader = true;
+			break;
+		case 'd': /* done (stop logging debug info) */
+		  syslog(LOG_INFO, "snp_in_reboot was: %d\n", snp_in_reboot);
+			snp_in_reboot = false;
+			return 0;
+
+		case 's': /* save */
+			snp_do_save = true;
+			sleep(2); // delay nsh>
+			return 0;
+
+		case 'r': /* restore */
+			*(volatile uint32_t *)0x40002854 = 0x11111111;
+			snp_do_restore = true;
+			sleep(2); // delay nsh>
+			return 0;
+
+		case 'w':
+			asm volatile("cpsid i");
+			syslog(LOG_INFO, "warm reboot\n");
+			{
+				uint32_t addr;
+#define NVIC_ICER_S	(0xE000E180)
+#define NVIC_ICER_E	(0xE000E1C0)
+				for (addr = NVIC_ICER_S;
+				     addr < NVIC_ICER_E;
+				     addr += 4) {
+					*(volatile uint32_t *)addr = 0xFFFFFFFF;
+				}
+#define SYST_CSR	(0xE000E010)
+				addr = SYST_CSR;
+				*(volatile uint32_t *)addr = 0x0;
+			}
+			{
+			uint32_t primask, faultmask, basepri;
+			asm volatile("mrs %0, PRIMASK" : "=r"(primask));
+			asm volatile("mrs %0, FAULTMASK" : "=r"(faultmask));
+			asm volatile("mrs %0, BASEPRI" : "=r"(basepri));
+			syslog(LOG_INFO, "primask: %x, faultmask: %x, basepri: %x\n",
+			       primask, faultmask, basepri);
+			}
+			asm volatile("cpsie i");
+
+			stm32_pwr_enablebkp(true);
+			*(volatile uint32_t *)0x40002854 = 0x22222222;
+			asm volatile("dsb");
+
+			asm volatile("msr msp, %0\n"
+				     "bx %1\n"
+				     :
+				     : "r"(*(uint32_t *)0x08004000),
+				       "r"(*(uint32_t *)0x08004004));
+			for (;;);
 			break;
 
 		default:

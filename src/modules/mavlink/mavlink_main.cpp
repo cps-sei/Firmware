@@ -2870,3 +2870,10 @@ int mavlink_main(int argc, char *argv[])
 
 	return 0;
 }
+
+extern "C"
+bool mavlink_boot_complete(void);
+bool mavlink_boot_complete(void)
+{
+    return Mavlink::boot_complete();
+}
