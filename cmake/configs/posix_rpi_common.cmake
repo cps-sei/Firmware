@@ -77,6 +77,7 @@ set(config_module_list
 	drivers/navio_gpio
 	drivers/navio_rgbled
 	drivers/pwm_out_sim
+	drivers/navio_sysfs_pwm_hil
 
 	#
 	# Libraries

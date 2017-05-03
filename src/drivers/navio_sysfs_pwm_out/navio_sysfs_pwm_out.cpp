@@ -63,6 +63,7 @@ static int  _pwm_fd[NUM_PWM];
 
 static const int FREQUENCY_PWM = 400;
 static char _mixer_filename[64] = "ROMFS/px4fmu_common/mixers/quad_x.main.mix";
+static bool _split = false; // do not generate actuator_outputs if true
 
 // subscriptions
 int     _controls_subs[actuator_controls_s::NUM_ACTUATOR_CONTROL_GROUPS];
@@ -373,18 +374,20 @@ void task_main(int argc, char *argv[])
 				       pwm,
 				       &_pwm_limit);
 
-			if (_armed.lockdown || _armed.manual_lockdown) {
+			if ((!_split && _armed.lockdown) || _armed.manual_lockdown) {
 				send_outputs_pwm(disarmed_pwm);
 
 			} else {
 				send_outputs_pwm(pwm);
 			}
 
-			if (_outputs_pub != nullptr) {
-				orb_publish(ORB_ID(actuator_outputs), _outputs_pub, &_outputs);
+			if (!_split) {
+				if (_outputs_pub != nullptr) {
+					orb_publish(ORB_ID(actuator_outputs), _outputs_pub, &_outputs);
 
-			} else {
-				_outputs_pub = orb_advertise(ORB_ID(actuator_outputs), &_outputs);
+				} else {
+					_outputs_pub = orb_advertise(ORB_ID(actuator_outputs), &_outputs);
+				}
 			}
 
 		} else {
@@ -454,7 +457,8 @@ void stop()
 
 void usage()
 {
-	PX4_INFO("usage: pwm_out start [-d pwmdevice] -m mixerfile");
+	PX4_INFO("usage: pwm_out start [-s] [-d pwmdevice] -m mixerfile");
+	PX4_INFO("       -s           : do not publish actuator_output WARNING! it will send motor signals even in HIL");
 	PX4_INFO("       -d pwmdevice : sysfs device for pwm generation");
 	PX4_INFO("                       (default /sys/class/pwm/pwmchip0)");
 	PX4_INFO("       -m mixerfile : path to mixerfile");
@@ -483,7 +487,7 @@ int navio_sysfs_pwm_out_main(int argc, char *argv[])
 		return 1;
 	}
 
-	while ((ch = px4_getopt(argc, argv, "d:m:", &myoptind, &myoptarg)) != EOF) {
+	while ((ch = px4_getopt(argc, argv, "sd:m:", &myoptind, &myoptarg)) != EOF) {
 		switch (ch) {
 		case 'd':
 			strncpy(navio_sysfs_pwm_out::_device, myoptarg, sizeof(navio_sysfs_pwm_out::_device));
@@ -491,6 +495,10 @@ int navio_sysfs_pwm_out_main(int argc, char *argv[])
 
 		case 'm':
 			strncpy(navio_sysfs_pwm_out::_mixer_filename, myoptarg, sizeof(navio_sysfs_pwm_out::_mixer_filename));
+			break;
+
+		case 's':
+			navio_sysfs_pwm_out::_split = true;
 			break;
 		}
 	}
