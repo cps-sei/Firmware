@@ -1576,6 +1576,10 @@ MavlinkReceiver::handle_message_manual_control(mavlink_message_t *msg)
 		manual.z = man.z / 1000.0f;
 		manual.data_source = manual_control_setpoint_s::SOURCE_MAVLINK_0 + _mavlink->get_instance_id();
 
+		// encode buttons in aux channels
+		manual.aux1 = (man.buttons & (1 << 1)) ? 1.0 : -1.0;
+		manual.aux2 = (man.buttons & (1 << 2)) ? 1.0 : -1.0;
+
 		int m_inst;
 		orb_publish_auto(ORB_ID(manual_control_setpoint), &_manual_pub, &manual, &m_inst, ORB_PRIO_LOW);
 	}
