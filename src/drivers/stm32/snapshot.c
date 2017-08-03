@@ -6,6 +6,7 @@
 #include <systemlib/param/param.h>
 #include <uORB/topics/vehicle_command.h>
 #include <uORB/topics/rc_channels.h>
+#include <uORB/topics/manual_control_setpoint.h>
 
 #include <drivers/drv_hrt.h>
 
@@ -145,36 +146,69 @@ static hrt_abstime t __attribute__((section(".data.across_reboot"))) = 0;
 
 extern bool mavlink_boot_complete(void);
 
-void poll_reboot(void);
-void poll_reboot(void)
-{
+static bool snapshot_request = false;
+static bool reboot_request = false;
+
+static void poll_rc_channels(void) {
 	static int sub = 0;
 
-	hrt_abstime t2;
 	bool updated = false;
 	struct rc_channels_s rc;
 	int ch;
 	float value;
 
+	if (sub == 0) {
+		sub = orb_subscribe(ORB_ID(rc_channels));
+	}
+
+	orb_check(sub, &updated);
+
+	if (updated) {
+		orb_copy(ORB_ID(rc_channels), sub, &rc);
+
+		ch = rc.function[RC_CHANNELS_FUNCTION_AUX_1];
+		value = 0.5f * rc.channels[ch] + 0.5f;
+		reboot_request = (value > 0.5f);
+
+		ch = rc.function[RC_CHANNELS_FUNCTION_AUX_2];
+		value = 0.5f * rc.channels[ch] + 0.5f;
+		snapshot_request = (value > 0.5f);
+	}
+}
+
+static void poll_manual_control_setpoint(void) {
+	static int sub = 0;
+
+	bool updated = false;
+	struct manual_control_setpoint_s manual;
+
+	if (sub == 0) {
+		sub = orb_subscribe(ORB_ID(manual_control_setpoint));
+	}
+
+	orb_check(sub, &updated);
+
+	if (updated) {
+		orb_copy(ORB_ID(manual_control_setpoint), sub, &manual);
+
+		reboot_request = (manual.aux1 > 0.5f);
+		snapshot_request = (manual.aux2 > 0.5f);
+	}
+}
+
+void poll_reboot(void);
+void poll_reboot(void)
+{
+	hrt_abstime t2;
+
 	t2 = cycletime();
-	if (mavlink_boot_complete() && t2 - t > 1000000) {
-		if (sub == 0) {
-			sub = orb_subscribe(ORB_ID(rc_channels));
-		}
-
-		orb_check(sub, &updated);
-
-		if (updated) {
-			orb_copy(ORB_ID(rc_channels), sub, &rc);
-
-			ch = rc.function[RC_CHANNELS_FUNCTION_AUX_1];
-			value = 0.5f * rc.channels[ch] + 0.5f;
-
-			if (value > 0.5f) {
-				t = cycletime();
-				snp_do_restore = true;
-				syslog(LOG_INFO, "restore detected, %lld\n", t);
-			}
+	if (mavlink_boot_complete() && t2 - t > 1500000) {
+		poll_rc_channels();
+		poll_manual_control_setpoint();
+		if (reboot_request) {
+			t = cycletime();
+			snp_do_restore = true;
+			syslog(LOG_INFO, "restore detected, %lld\n", t);
 		}
 	}
 }
@@ -184,31 +218,13 @@ bool snapshot_taken __attribute__((section(".data.across_reboot"))) = false;
 void poll_snapshot(void);
 void poll_snapshot(void)
 {
-	static int sub = 0;
-
-	bool updated = false;
-	struct rc_channels_s rc;
-	int ch;
-	float value;
-
 	if (!snapshot_taken) {
-		if (sub == 0) {
-			sub = orb_subscribe(ORB_ID(rc_channels));
-		}
-
-		orb_check(sub, &updated);
-
-		if (updated) {
-			orb_copy(ORB_ID(rc_channels), sub, &rc);
-
-			ch = rc.function[RC_CHANNELS_FUNCTION_AUX_2];
-			value = 0.5f * rc.channels[ch] + 0.5f;
-
-			if (value > 0.5f) {
-				snp_do_save = true;
-				snapshot_taken = true;
-				syslog(LOG_INFO, "save detected, %lld\n", t);
-			}
+		poll_rc_channels();
+		poll_manual_control_setpoint();
+		if (snapshot_request) {
+			snp_do_save = true;
+			snapshot_taken = true;
+			syslog(LOG_INFO, "save detected, %lld\n", t);
 		}
 	}
 }

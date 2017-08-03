@@ -1626,7 +1626,7 @@ MavlinkReceiver::handle_message_manual_control(mavlink_message_t *msg)
 		// encode buttons in aux channels
 		manual.aux1 = (man.buttons & (1 << 1)) ? 1.0 : -1.0;
 		manual.aux2 = (man.buttons & (1 << 2)) ? 1.0 : -1.0;
- 
+
 		int m_inst;
 		orb_publish_auto(ORB_ID(manual_control_setpoint), &_manual_pub, &manual, &m_inst, ORB_PRIO_LOW);
 	}
