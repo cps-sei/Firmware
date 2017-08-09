@@ -39,6 +39,7 @@ px4_add_module(
 		drv_pwm_servo.c
 		drv_input_capture.c
 		drv_led_pwm.cpp
+		snapshot_params.c
 		snapshot.c
 	DEPENDS
 		platforms__common
