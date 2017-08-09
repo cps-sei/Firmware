@@ -200,9 +200,25 @@ void poll_reboot(void);
 void poll_reboot(void)
 {
 	hrt_abstime t2;
+	static int32_t period = -1;
+	static hrt_abstime last_param_get;
 
+	if (!mavlink_boot_complete()) {
+		return;
+	}
+	
 	t2 = cycletime();
-	if (mavlink_boot_complete() && t2 - t > 1500000) {
+
+	// check for param update every 2 seconds
+	if (period == -1 || t2 - last_param_get > 2000000) {
+		param_get(param_find("YL_REBOOT_PERIOD"), &period);
+		last_param_get = cycletime();
+		if (period < 1000000) {
+			period = 1000000;
+		}
+	}
+
+	if (t2 - t > period) {
 		poll_rc_channels();
 		poll_manual_control_setpoint();
 		if (reboot_request) {
