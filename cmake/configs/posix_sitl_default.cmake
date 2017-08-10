@@ -177,6 +177,9 @@ set(config_module_list
 
 	# micro-RTPS
 	lib/micro-CDR
+
+	# checkpoint
+	examples/checkpoint
 )
 
 set(config_extra_builtin_cmds
