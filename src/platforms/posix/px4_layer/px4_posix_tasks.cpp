@@ -60,6 +60,18 @@
 #include <px4_posix.h>
 #include <systemlib/err.h>
 
+// Dio: To enable checkpoint/rollback
+extern "C"{
+#include <checkpointapi.h>
+}
+
+// to enable CPU affiliation
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+#include <sched.h>
+
+
 #define MAX_CMD_LEN 100
 
 #define PX4_MAX_TASKS 50
@@ -90,6 +102,20 @@ static void *entry_adapter(void *ptr)
 	pthdata_t *data = (pthdata_t *) ptr;
 
 	int rv;
+
+	int tid = gettid();
+	cpu_set_t mask; 
+
+	// Dio: For checkpoint/rollback. At this point
+	// it is limited to threads in the same core
+	// so we fix the execution only to core 0
+	CPU_ZERO(&mask); 
+	CPU_SET(0, &mask); 
+	if (sched_setaffinity(tid, sizeof mask, &mask)<0){
+	  printf("Could not fix CPU to zero\n");
+	  return NULL;
+	}
+
 
 	// set the threads name
 #ifdef __PX4_DARWIN

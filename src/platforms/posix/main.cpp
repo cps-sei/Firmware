@@ -54,6 +54,19 @@
 #include <termios.h>
 #include <sys/stat.h>
 
+// Dio: To enable checkpoint/rollback
+extern "C"{
+#include <checkpointapi.h>
+}
+
+
+// to enable CPU affiliation
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+#include <sched.h>
+#include <sys/mman.h>
+
 namespace px4
 {
 void init_once();
@@ -296,7 +309,26 @@ int main(int argc, char **argv)
 {
 	bool daemon_mode = false;
 	bool chroot_on = false;
+	int tid = gettid();
+	cpu_set_t mask; 
 
+	// Dio: For checkpoint/rollback. At this point
+	// it is limited to threads in the same core
+	// so we fix the execution only to core 0
+	CPU_ZERO(&mask); 
+	CPU_SET(0, &mask); 
+	if (sched_setaffinity(tid, sizeof mask, &mask)<0){
+	  printf("Could not fix CPU to zero\n");
+	  return -1;
+	}
+
+	// Dio: for checkpoint/rollback.
+	// lock all current and future pages in memory
+	if (mlockall(MCL_CURRENT | MCL_FUTURE)<0){
+	  perror("trying mlockall");
+	  return -1;
+	}
+	
 	tcgetattr(0, &orig_term);
 	atexit(restore_term);
 

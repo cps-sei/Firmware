@@ -30,7 +30,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 ############################################################################
-
+include_directories(/home/dionisio/git/yolo-linux-microreboot/checkpoint)
 if("${CONFIG_SHMEM}" STREQUAL "1")
 	set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PX4_SOURCE_DIR}/cmake/cmake_hexagon")
 	include(hexagon_sdk)

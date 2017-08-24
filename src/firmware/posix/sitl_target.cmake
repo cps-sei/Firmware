@@ -13,11 +13,12 @@ px4_parse_function_args(
 			)
 
 	if (NOT APPLE)
-		target_link_libraries(${APP_NAME}
+	  target_link_libraries(${APP_NAME}
+	                -L/home/dionisio/git/yolo-linux-microreboot/checkpoint/lib
 			-Wl,--start-group
 			${module_libraries}
 			${df_driver_libs}
-			pthread m rt
+			pthread m rt ckp
 			-Wl,--end-group
 			)
 	else()

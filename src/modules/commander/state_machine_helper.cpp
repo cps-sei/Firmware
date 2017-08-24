@@ -945,16 +945,16 @@ bool check_invalid_pos_nav_state(struct vehicle_status_s *status,
 				status->nav_state = vehicle_status_s::NAVIGATION_STATE_TERMINATION;
 			}
 		}
-
+#if 0 // Dio:
 		if (using_global_pos) {
 			enable_failsafe(status, old_failsafe, mavlink_log_pub, reason_no_global_position);
 		} else {
 			enable_failsafe(status, old_failsafe, mavlink_log_pub, reason_no_local_position);
 		}
-
+#endif
 	}
 
-	return fallback_required;
+	return false; // Dio: fallback_required;
 
 }
 

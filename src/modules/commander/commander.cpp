@@ -2043,7 +2043,7 @@ int commander_thread_main(int argc, char *argv[])
 			 * barometer is inoperational.
 			 * */
 			hrt_abstime baro_timestamp = sensors.timestamp + sensors.baro_timestamp_relative;
-			if (hrt_elapsed_time(&baro_timestamp) < FAILSAFE_DEFAULT_TIMEOUT) {
+			if (true || hrt_elapsed_time(&baro_timestamp) < FAILSAFE_DEFAULT_TIMEOUT) { // Dio:
 				/* handle the case where baro was regained */
 				if (status_flags.barometer_failure) {
 					status_flags.barometer_failure = false;
@@ -2183,7 +2183,7 @@ int commander_thread_main(int argc, char *argv[])
 
 		// Perform a separate timeout validity test on the global position data.
 		// This is necessary because the global position message is by definition valid if published.
-		if ((hrt_absolute_time() - gpos_last_update_time_us) > 1000000) {
+		if (false && (hrt_absolute_time() - gpos_last_update_time_us) > 1000000) { // Dio:
 			status_flags.condition_global_position_valid = false;
 			status_flags.condition_global_velocity_valid = false;
 		}
@@ -2489,7 +2489,8 @@ int commander_thread_main(int argc, char *argv[])
 			}
 
 			// Check fix type and data freshness
-			if (gps_position.fix_type >= 3 && hrt_elapsed_time(&gps_position.timestamp) < FAILSAFE_DEFAULT_TIMEOUT) {
+			// Dio: disable to tolerate reboots
+			if (true){//gps_position.fix_type >= 3 && hrt_elapsed_time(&gps_position.timestamp) < FAILSAFE_DEFAULT_TIMEOUT) {
 				/* handle the case where gps was regained */
 				if (status_flags.gps_failure && !gpsIsNoisy) {
 					status_flags.gps_failure = false;

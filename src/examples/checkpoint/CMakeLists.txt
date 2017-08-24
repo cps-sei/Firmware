@@ -1,3 +1,4 @@
+include_directories(/home/dionisio/git/yolo-linux-microreboot/checkpoint)
 px4_add_module(
 	MODULE examples__checkpoint
 	MAIN checkpoint

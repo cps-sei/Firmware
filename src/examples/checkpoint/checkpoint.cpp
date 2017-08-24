@@ -6,14 +6,46 @@
 #include <poll.h>
 #include <string.h>
 
+extern "C"{
+#include <checkpointapi.h>
+}
+
+
 extern "C" __EXPORT int checkpoint_main(int argc, char *argv[]);
 
+int fid=-1;
+int ckpid;
+
 static void do_save() {
-  PX4_INFO("checkpoint: save");
+
+  if ((fid = open("/dev/checkpoint0",O_RDWR)) <0){
+    printf("error trying to open /dev/checkpoint0\n");
+    return;
+  }
+  
+  PX4_INFO("checkpoint: saving");
+  
+  if ((ckpid = ckp_create_checkpoint(fid,getpid()))<0){
+    printf("could not create the checkpoint\n");
+    return;
+  }
+    
 }
 
 static void do_restore() {
-  PX4_INFO("checkpoint: restore");
+
+  if (fid <0 ){
+    printf("checkpoint module not open\n");
+    return;
+  }
+
+  PX4_INFO("checkpoint: restoring");
+
+  if (ckp_rollback(fid, ckpid)<0){
+    printf("Could not rollback\n");
+    return;
+  }
+  
 }
 
 static int usage()
