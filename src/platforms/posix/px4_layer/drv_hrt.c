@@ -50,6 +50,8 @@
 #include <errno.h>
 #include "hrt_work.h"
 
+#include <sys/time.h>
+
 static struct sq_queue_s	callout_queue;
 
 /* latency histogram */
@@ -76,6 +78,13 @@ static hrt_abstime _delay_interval = 0;
 static hrt_abstime max_time = 0;
 pthread_mutex_t _hrt_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+// Dio: to enable going back in time after a
+// rollback
+
+struct timespec *ckp_checkpoint_timestamp=NULL;
+struct timespec *ckp_rollback_timestamp=NULL;
+
+
 static void
 hrt_call_invoke(void);
 
@@ -95,20 +104,54 @@ static void hrt_unlock(void)
 }
 
 #if defined(__PX4_APPLE_LEGACY)
-#include <sys/time.h>
+
+static int printed_rollback_info=0;
+static int printed_first_use=0;
 
 int px4_clock_gettime(clockid_t clk_id, struct timespec *tp)
 {
 	struct timeval now;
 	int rv = gettimeofday(&now, NULL);
+	unsigned long long elapsed_ns=0L;
+	unsigned long long now_ns=0L;
 
+	printf("** DEBUG: -- this clock 0\n");
+
+	if (!printed_first_use){
+	  printed_first_use=1;
+	  printf("debugging -- first use of px4_clock_gettime()\n");
+	}
+	
 	if (rv) {
 		return rv;
 	}
 
 	tp->tv_sec = now.tv_sec;
-	tp->tv_nsec = now.tv_usec * 1000;
+	tp->tv_nsec = (now.tv_usec * 1000);
 
+	// Dio: substract elapsed time between checkpoint and rollback
+	if (ckp_rollback_timestamp != NULL && (ckp_rollback_timestamp->tv_sec != 0 || ckp_rollback_timestamp->tv_nsec != 0)){
+	  now_ns = tp->tv_sec * 1000000000L + tp->tv_nsec;
+	  elapsed_ns = ckp_rollback_timestamp->tv_sec * 1000000000L +
+	    ckp_rollback_timestamp->tv_nsec;
+	  elapsed_ns = elapse_ns - (ckp_checkpoint_timestamp->tv_sec * 1000000000L; +
+				    ckl_checkpoint_timestamp->tv_nsec);
+
+	  if (!printed_rollback_info){
+	    printed_rollback_info=1;
+	    printf("Rolled-backed: elapsed %llu ns\n" elapsed_ns);
+	    printf("\t original now: %llu ns, adjusted now: %llu\n",
+		   now_ns, (now_ns-elapsed_ns));
+
+	  }
+
+	  
+	  now_ns = now_ns - elapsed_ns;
+	  
+	  tp->tv_sec = now_ns / 1000000000L;
+	  tp->tv_nsec = now_ns % 1000000000L;
+	}
+	
 	return 0;
 }
 
@@ -130,7 +173,41 @@ int px4_clock_settime(clockid_t clk_id, struct timespec *tp)
 
 int px4_clock_gettime(clockid_t clk_id, struct timespec *tp)
 {
-	return clock_gettime(clk_id, tp);
+  int ret;
+  unsigned long long elapsed_ns=0L;
+  unsigned long long now_ns=0L;
+  unsigned long long checkpoint_ts_ns;
+
+
+  ret = clock_gettime(clk_id,tp);
+
+  printf("** DEBUG: -- this clock 1\n");
+  
+  if (ckp_rollback_timestamp != NULL && (ckp_rollback_timestamp->tv_sec != 0 || ckp_rollback_timestamp->tv_nsec != 0)){
+
+    now_ns = tp->tv_sec * 1000000000L + tp->tv_nsec;
+    elapsed_ns = ckp_rollback_timestamp->tv_sec * 1000000000L +
+      ckp_rollback_timestamp->tv_nsec;
+    checkpoint_ts_ns = ckp_checkpoint_timestamp->tv_sec * 1000000000L + ckl_checkpoint_timestamp->tv_nsec;
+    elapsed_ns = elapse_ns - checkpoint_ts_ns;
+
+    printf("*** DEBUG correcting clock\n");
+    if (!printed_rollback_info){
+      printed_rollback_info=1;
+      printf("Rolled-backed: elapsed %llu ns\n" elapsed_ns);
+      printf("\t original now: %llu ns, adjusted now: %llu\n",
+	     now_ns, (now_ns-elapsed_ns));
+
+    }
+
+	  
+    now_ns = now_ns - elapsed_ns;
+	  
+    tp->tv_sec = now_ns / 1000000000L;
+    tp->tv_nsec = now_ns % 1000000000L;
+  }
+
+  return ret;//clock_gettime(clk_id, tp);
 }
 
 #endif
@@ -146,6 +223,67 @@ uint64_t hrt_system_time(void)
 	return ts_to_abstime(&ts);
 }
 #endif
+
+static void timespec_diff(struct timespec *start, struct timespec *stop, struct timespec *result)
+{
+  if ((stop->tv_nsec - start->tv_nsec) < 0) {
+    result->tv_sec = stop->tv_sec - start->tv_sec - 1;
+    result->tv_nsec = stop->tv_nsec - start->tv_nsec + 1000000000;
+  } else {
+    result->tv_sec = stop->tv_sec - start->tv_sec;
+    result->tv_nsec = stop->tv_nsec - start->tv_nsec;
+  }
+}
+
+static int printed_rollback_info=0;
+
+static void correct_rollback(struct timespec *tp)
+{
+  /*
+  unsigned long long elapsed_ns=0L;
+  unsigned long long now_ns=0L;
+  unsigned long long checkpoint_ts_ns=0L;
+  */
+  struct timespec elapsed;
+  
+  
+  if (ckp_rollback_timestamp != NULL &&
+      (ckp_rollback_timestamp->tv_sec != 0 ||
+       ckp_rollback_timestamp->tv_nsec != 0)){
+    
+    timespec_diff(ckp_checkpoint_timestamp,ckp_rollback_timestamp,&elapsed);
+    timespec_diff(&elapsed,tp, tp);
+    
+    if (!printed_rollback_info){
+      printed_rollback_info=1;
+      printf("Rolled-backed: elapsed %ld sec %ld ns\n", elapsed.tv_sec,elapsed.tv_nsec);
+    }
+
+    /*
+    now_ns = tp->tv_sec * 1000000000L + tp->tv_nsec;
+    elapsed_ns       = ckp_rollback_timestamp->tv_sec   * 1000000000L + ckp_rollback_timestamp->tv_nsec;
+    checkpoint_ts_ns = ckp_checkpoint_timestamp->tv_sec * 1000000000L + ckp_checkpoint_timestamp->tv_nsec;
+    elapsed_ns = elapsed_ns - checkpoint_ts_ns;
+    if (!printed_rollback_info){
+      printed_rollback_info=1;
+      printf("Rolled-backed: elapsed %llu ns\n", elapsed_ns);
+      printf("\t original now: %llu ns, adjusted now: %llu\n",
+	     now_ns, (now_ns-elapsed_ns));
+
+    }
+
+
+    if (elapsed_ns > now_ns){
+      printf("*** ERROR:  correct_rollback(): negative time!!\n");
+    }
+    
+    now_ns = now_ns - elapsed_ns;
+	  
+    tp->tv_sec  = now_ns / 1000000000L;
+    tp->tv_nsec = now_ns % 1000000000L;
+    */
+  }
+}
 
 /*
  * Get absolute time.
@@ -166,13 +304,16 @@ hrt_abstime _hrt_absolute_time_internal(void)
 	return ts_to_abstime(&ts);
 
 #else
-
+	// Dio: this is the config that is active
+	//printf("IN: _hrt_absolute_time_internal()\n");
 	if (!px4_timestart) {
 		px4_clock_gettime(CLOCK_MONOTONIC, &ts);
+		correct_rollback(&ts);
 		px4_timestart = ts_to_abstime(&ts);
 	}
 
 	px4_clock_gettime(CLOCK_MONOTONIC, &ts);
+	correct_rollback(&ts);
 	return ts_to_abstime(&ts) - px4_timestart;
 #endif
 }
@@ -185,6 +326,7 @@ int hrt_set_absolute_time_offset(int32_t time_diff_us)
 }
 #endif
 
+static int ckp_rollback_delay_corrected=0;
 /*
  * Get absolute time.
  */
@@ -194,6 +336,15 @@ hrt_abstime hrt_absolute_time(void)
 
 	hrt_abstime ret;
 
+	if (!ckp_rollback_delay_corrected && ckp_rollback_timestamp != NULL &&
+	    ckp_rollback_timestamp->tv_sec != 0 &&
+	    ckp_rollback_timestamp->tv_nsec != 0){
+	  ckp_rollback_delay_corrected=1;
+	  if (_start_delay_time > 0){
+	    printf("** DEBUG rollback during active delay\n");
+	  }
+	}
+	
 	if (_start_delay_time > 0) {
 		ret = _start_delay_time;
 

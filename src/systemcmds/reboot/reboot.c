@@ -44,6 +44,7 @@
 #include <px4_shutdown.h>
 #include <systemlib/systemlib.h>
 #include <string.h>
+#include <drivers/drv_hrt.h>
 
 __EXPORT int reboot_main(int argc, char *argv[]);
 
@@ -72,6 +73,7 @@ int reboot_main(int argc, char *argv[])
 			break;
 
 		default:
+		    printf("hrt=%"PRIu64"\n", hrt_absolute_time());
 			print_usage();
 			return 1;
 

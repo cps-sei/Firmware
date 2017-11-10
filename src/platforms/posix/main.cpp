@@ -54,11 +54,7 @@
 #include <termios.h>
 #include <sys/stat.h>
 
-// Dio: To enable checkpoint/rollback
-extern "C"{
-#include <checkpointapi.h>
-}
-
+#include <sys/time.h>
 
 // to enable CPU affiliation
 #ifndef _GNU_SOURCE
@@ -66,6 +62,11 @@ extern "C"{
 #endif
 #include <sched.h>
 #include <sys/mman.h>
+
+// Dio: To enable checkpoint/rollback
+extern "C"{
+#include <checkpointapi.h>
+}
 
 namespace px4
 {
@@ -324,11 +325,11 @@ int main(int argc, char **argv)
 
 	// Dio: for checkpoint/rollback.
 	// lock all current and future pages in memory
-	if (mlockall(MCL_CURRENT | MCL_FUTURE)<0){
-	  perror("trying mlockall");
-	  return -1;
-	}
-	
+	// if (mlockall(MCL_CURRENT | MCL_FUTURE)<0){
+	//   perror("trying mlockall");
+	//   return -1;
+	// }
+       	
 	tcgetattr(0, &orig_term);
 	atexit(restore_term);
 

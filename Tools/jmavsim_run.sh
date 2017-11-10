@@ -43,4 +43,6 @@ fi
 
 ant create_run_jar copy_res
 cd out/production
-gnome-terminal -e "java -Djava.ext.dirs= -jar jmavsim_run.jar $device $extra_args"
+#gnome-terminal -e "java -Djava.ext.dirs= -jar jmavsim_run.jar $device $extra_args"
+gnome-terminal -e "./runjmavsim.sh $device $extra_args"
+

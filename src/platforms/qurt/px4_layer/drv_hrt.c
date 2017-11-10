@@ -75,6 +75,7 @@ int px4_clock_gettime(clockid_t clk_id, struct timespec *tp)
 	struct timeval now;
 	int rv = gettimeofday(&now, NULL);
 
+	printf("DEBUG this 1\n");
 	if (rv) {
 		return rv;
 	}
