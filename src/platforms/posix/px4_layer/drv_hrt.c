@@ -52,6 +52,8 @@
 
 #include <sys/time.h>
 
+#include <checkpointapi.h>
+
 static struct sq_queue_s	callout_queue;
 
 /* latency histogram */
@@ -83,6 +85,8 @@ pthread_mutex_t _hrt_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 struct timespec *ckp_checkpoint_timestamp=NULL;
 struct timespec *ckp_rollback_timestamp=NULL;
+int ckpfid = -1;
+int ckpid;
 
 
 static void
@@ -226,9 +230,11 @@ uint64_t hrt_system_time(void)
 
 static void timespec_diff(struct timespec *start, struct timespec *stop, struct timespec *result)
 {
-  if ((stop->tv_nsec - start->tv_nsec) < 0) {
+  //if ((stop->tv_nsec - start->tv_nsec) < 0) {
+  if (stop->tv_nsec < start->tv_nsec) {
     result->tv_sec = stop->tv_sec - start->tv_sec - 1;
-    result->tv_nsec = stop->tv_nsec - start->tv_nsec + 1000000000;
+    //result->tv_nsec = stop->tv_nsec - start->tv_nsec + 1000000000;
+    result->tv_nsec = (stop->tv_nsec + 1000000000) - start->tv_nsec;
   } else {
     result->tv_sec = stop->tv_sec - start->tv_sec;
     result->tv_nsec = stop->tv_nsec - start->tv_nsec;
@@ -245,7 +251,15 @@ static void correct_rollback(struct timespec *tp)
   unsigned long long checkpoint_ts_ns=0L;
   */
   struct timespec elapsed;
-  
+  struct timespec in;
+  memcpy(&in, tp, sizeof(struct timespec));
+
+  // lock persistent state
+  if (ckpfid != -1){
+    if (ckp_read_lock_persistent_mem(ckpfid,ckpid)){
+      printf("drv_hrt.c:correct_rollback(): ERROR locking checkpoint persistent memory\n");
+    }
+  }
   
   if (ckp_rollback_timestamp != NULL &&
       (ckp_rollback_timestamp->tv_sec != 0 ||
@@ -257,6 +271,7 @@ static void correct_rollback(struct timespec *tp)
     if (!printed_rollback_info){
       printed_rollback_info=1;
       printf("Rolled-backed: elapsed %ld sec %ld ns\n", elapsed.tv_sec,elapsed.tv_nsec);
+      printf("input %ld sec, output %ld sec\n", in.tv_sec, tp->tv_sec);
     }
 
     /*
@@ -283,6 +298,13 @@ static void correct_rollback(struct timespec *tp)
     tp->tv_nsec = now_ns % 1000000000L;
     */
   }
+
+  if (ckpfid != -1){
+    if (ckp_read_unlock_persistent_mem(ckpfid,ckpid)){
+      printf("drv_hrt.c:correct_rollback(): ERROR unlocking checkpoint persistent memory\n");
+    }
+  }
+
 }
 
 /*

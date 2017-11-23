@@ -4,8 +4,10 @@
 #ifdef __cplusplus
 extern "C"{
 #endif
-extern struct timespec *ckp_checkpoint_timestamp;
-extern struct timespec *ckp_rollback_timestamp;
+  extern struct timespec *ckp_checkpoint_timestamp;
+  extern struct timespec *ckp_rollback_timestamp;
+  extern int ckpfid;
+  extern int ckpid;
 #ifdef __cplusplus
 }
 #endif

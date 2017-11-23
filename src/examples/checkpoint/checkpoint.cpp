@@ -7,7 +7,7 @@
 #include <string.h>
 #include <sys/time.h>
 #include <sys/mman.h>
-
+#include <signal.h>
 
 extern "C"{
 #include <checkpointapi.h>
@@ -17,8 +17,9 @@ extern "C"{
 
 extern "C" __EXPORT int checkpoint_main(int argc, char *argv[]);
 
-int fid=-1;
-int ckpid;
+// moved definition to drv_hrt.c
+// int ckpfid=-1;
+// int ckpid;
 
 static int get_timestamp(struct timespec *tp){
 	struct timeval now;
@@ -33,7 +34,7 @@ static int get_timestamp(struct timespec *tp){
 
 static void do_save() {
   
-  if ((fid = open("/dev/checkpoint0",O_RDWR)) <0){
+  if ((ckpfid = open("/dev/checkpoint0",O_RDWR)) <0){
     printf("error trying to open /dev/checkpoint0\n");
     return;
   }
@@ -73,7 +74,7 @@ static void do_save() {
     printf("error getting timestamp\n");
   }
   
-  if ((ckpid = ckp_create_checkpoint(fid,getpid(),ckp_rollback_timestamp,sizeof(struct timespec)))<0){
+  if ((ckpid = ckp_create_checkpoint(ckpfid,getpid(),ckp_rollback_timestamp,sizeof(struct timespec)))<0){
     printf("could not create the checkpoint\n");
     //return;
   }
@@ -90,9 +91,24 @@ static void do_save() {
   }
 }
 
+static int rollback_signal_captured = 0;
+static void rollback_handler(int signo, siginfo_t *siginfo, void *ptr)
+{
+  //int ckpid  = siginfo->si_value.sival_int;
+
+  if (get_timestamp(ckp_rollback_timestamp)){
+    printf("error getting timestamp\n");
+  }
+
+  if (ckp_rollback_signal_processed(ckpfid,ckpid)<0){
+    printf("error sending signal processed to the kernel\n");
+  }
+  printf("rollback signal received\n");
+}
+
 static void do_restore() {
 
-  if (fid <0 ){
+  if (ckpfid <0 ){
     printf("checkpoint module not open\n");
     return;
   }
@@ -102,6 +118,8 @@ static void do_restore() {
   if (get_timestamp(ckp_rollback_timestamp)){
     printf("error getting timestamp\n");
   }
+
+
   printf("rollback timestamp: %d s, %d ns\n",ckp_rollback_timestamp->tv_sec, ckp_rollback_timestamp->tv_nsec);
   printf("checkpoint timestamp: %d s, %d ns\n",ckp_checkpoint_timestamp->tv_sec, ckp_checkpoint_timestamp->tv_nsec);
   
@@ -109,21 +127,51 @@ static void do_restore() {
   // preserve its value after the rest of the memory is rollbacked.
   // This way we can use the timestamp from the checkpoint and the rollback to
   // calculate the timestamp reset
-  if (ckp_rollback(fid, ckpid, ckp_rollback_timestamp, sizeof(struct timespec))<0){
+  if (ckp_rollback(ckpfid, ckpid)<0){
     printf("Could not rollback\n");
     return;
   }
 }
 
 static void do_timer(){
-  if (fid <0){
+  struct sigaction sa;
+  
+  if (ckpfid <0){
     printf("checkpoint module not open\n");
     return;
   }
 
   PX4_INFO("checkpint: setting timer");
 
-  if (ckp_set_rollback_timer(fid, ckpid, 2,0)<0){
+  // moved to rollback_signal_handler
+  // if (get_timestamp(ckp_rollback_timestamp)){
+  //   printf("error getting timestamp\n");
+  // }
+
+  if (!rollback_signal_captured){
+    rollback_signal_captured = 1;
+
+    sa.sa_sigaction = rollback_handler;
+    sa.sa_flags = SA_RESTART;
+    sigfillset(&sa.sa_mask);
+    sa.sa_flags |= SA_SIGINFO;
+
+    if (sigaction(ROLLBACK_SIGNO, &sa, NULL) <0){
+      printf("sigaction error\n");
+    }
+
+    
+    if (ckp_capture_rollback_signal(ckpfid,ckpid,gettid(),ROLLBACK_SIGNO)<0){
+      printf("Error capturing rollback signal\n");
+    } else {
+      printf("rollback signal captured\n");
+    }
+  }
+
+  printf("rollback timestamp: %d s, %d ns\n",ckp_rollback_timestamp->tv_sec, ckp_rollback_timestamp->tv_nsec);
+  printf("checkpoint timestamp: %d s, %d ns\n",ckp_checkpoint_timestamp->tv_sec, ckp_checkpoint_timestamp->tv_nsec);
+
+  if (ckp_set_rollback_timer(ckpfid, ckpid, 2,0)<0){
     printf("could not set timer\n");
     return;
   }
