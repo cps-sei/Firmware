@@ -86,7 +86,7 @@ pthread_mutex_t _hrt_mutex = PTHREAD_MUTEX_INITIALIZER;
 struct timespec *ckp_checkpoint_timestamp=NULL;
 struct timespec *ckp_rollback_timestamp=NULL;
 int ckpfid = -1;
-int ckpid;
+int ckpid=-1;
 
 
 static void
@@ -233,8 +233,8 @@ static void timespec_diff(struct timespec *start, struct timespec *stop, struct 
   //if ((stop->tv_nsec - start->tv_nsec) < 0) {
   if (stop->tv_nsec < start->tv_nsec) {
     result->tv_sec = stop->tv_sec - start->tv_sec - 1;
-    //result->tv_nsec = stop->tv_nsec - start->tv_nsec + 1000000000;
-    result->tv_nsec = (stop->tv_nsec + 1000000000) - start->tv_nsec;
+    result->tv_nsec = stop->tv_nsec - start->tv_nsec + 1000000000;
+    //result->tv_nsec = (stop->tv_nsec + 1000000000) - start->tv_nsec;
   } else {
     result->tv_sec = stop->tv_sec - start->tv_sec;
     result->tv_nsec = stop->tv_nsec - start->tv_nsec;
@@ -245,66 +245,45 @@ static int printed_rollback_info=0;
 
 static void correct_rollback(struct timespec *tp)
 {
-  /*
-  unsigned long long elapsed_ns=0L;
-  unsigned long long now_ns=0L;
-  unsigned long long checkpoint_ts_ns=0L;
-  */
   struct timespec elapsed;
   struct timespec in;
+  //int retry=0;
+  //int locking_called=0;
+
   memcpy(&in, tp, sizeof(struct timespec));
 
-  // lock persistent state
-  if (ckpfid != -1){
-    if (ckp_read_lock_persistent_mem(ckpfid,ckpid)){
-      printf("drv_hrt.c:correct_rollback(): ERROR locking checkpoint persistent memory\n");
-    }
-  }
+  //  do{
+
+    // lock persistent state
+    /* if (ckpfid != -1 && ckpid != -1){ */
+    /*   locking_called=1; */
+    /*   if (ckp_read_lock_persistent_mem(ckpfid,ckpid)){ */
+    /* 	printf("drv_hrt.c:correct_rollback(): ERROR locking checkpoint persistent memory\n"); */
+    /*   } */
+    /* } */
   
-  if (ckp_rollback_timestamp != NULL &&
-      (ckp_rollback_timestamp->tv_sec != 0 ||
-       ckp_rollback_timestamp->tv_nsec != 0)){
+    if (ckp_rollback_timestamp != NULL &&
+	(ckp_rollback_timestamp->tv_sec != 0 ||
+	 ckp_rollback_timestamp->tv_nsec != 0)){
     
-    timespec_diff(ckp_checkpoint_timestamp,ckp_rollback_timestamp,&elapsed);
-    timespec_diff(&elapsed,tp, tp);
+      timespec_diff(ckp_checkpoint_timestamp,ckp_rollback_timestamp,&elapsed);
+      timespec_diff(&elapsed,tp, tp);
     
-    if (!printed_rollback_info){
-      printed_rollback_info=1;
-      printf("Rolled-backed: elapsed %ld sec %ld ns\n", elapsed.tv_sec,elapsed.tv_nsec);
-      printf("input %ld sec, output %ld sec\n", in.tv_sec, tp->tv_sec);
+      if (!printed_rollback_info){
+	printed_rollback_info=1;
+	printf("correct_rollback(): checkpoint: %d s, %d ns | rollback: %d s, %d ns\n",
+	       ckp_checkpoint_timestamp->tv_sec, ckp_checkpoint_timestamp->tv_nsec,
+	       ckp_rollback_timestamp->tv_sec, ckp_rollback_timestamp->tv_nsec);
+	printf("Rolled-backed: elapsed %d sec %d ns\n", elapsed.tv_sec,elapsed.tv_nsec);
+	printf("input %d sec, output %d sec\n", in.tv_sec, tp->tv_sec);
+      }
     }
 
-    /*
-    now_ns = tp->tv_sec * 1000000000L + tp->tv_nsec;
-    elapsed_ns       = ckp_rollback_timestamp->tv_sec   * 1000000000L + ckp_rollback_timestamp->tv_nsec;
-    checkpoint_ts_ns = ckp_checkpoint_timestamp->tv_sec * 1000000000L + ckp_checkpoint_timestamp->tv_nsec;
-    elapsed_ns = elapsed_ns - checkpoint_ts_ns;
-    if (!printed_rollback_info){
-      printed_rollback_info=1;
-      printf("Rolled-backed: elapsed %llu ns\n", elapsed_ns);
-      printf("\t original now: %llu ns, adjusted now: %llu\n",
-	     now_ns, (now_ns-elapsed_ns));
-
-    }
-
-
-    if (elapsed_ns > now_ns){
-      printf("*** ERROR:  correct_rollback(): negative time!!\n");
-    }
-    
-    now_ns = now_ns - elapsed_ns;
-	  
-    tp->tv_sec  = now_ns / 1000000000L;
-    tp->tv_nsec = now_ns % 1000000000L;
-    */
-  }
-
-  if (ckpfid != -1){
-    if (ckp_read_unlock_persistent_mem(ckpfid,ckpid)){
-      printf("drv_hrt.c:correct_rollback(): ERROR unlocking checkpoint persistent memory\n");
-    }
-  }
-
+    //if (ckpfid != -1){
+    /* if (locking_called){ */
+    /*   retry = ckp_read_unlock_persistent_mem(ckpfid,ckpid); */
+    /* } */
+    //}while (retry);
 }
 
 /*
@@ -313,6 +292,8 @@ static void correct_rollback(struct timespec *tp)
 hrt_abstime _hrt_absolute_time_internal(void)
 {
 	struct timespec ts;
+	int retry=0;
+	int locking_called=0;
 
 #if defined(__PX4_QURT)
 	// Don't use the timestart on the DSP on Snapdragon because we manually
@@ -328,14 +309,26 @@ hrt_abstime _hrt_absolute_time_internal(void)
 #else
 	// Dio: this is the config that is active
 	//printf("IN: _hrt_absolute_time_internal()\n");
-	if (!px4_timestart) {
-		px4_clock_gettime(CLOCK_MONOTONIC, &ts);
-		correct_rollback(&ts);
-		px4_timestart = ts_to_abstime(&ts);
-	}
+	do {
+	  if (ckpfid != -1 && ckpid != -1){
+	    locking_called=1;
+	    if (ckp_read_lock_persistent_mem(ckpfid,ckpid)){
+	      printf("drv_hrt.c:correct_rollback(): ERROR locking checkpoint persistent memory\n");
+	    }
+	  }
+	  if (!px4_timestart) {
+	    px4_clock_gettime(CLOCK_MONOTONIC, &ts);
+	    correct_rollback(&ts);
+	    px4_timestart = ts_to_abstime(&ts);
+	  }
 
-	px4_clock_gettime(CLOCK_MONOTONIC, &ts);
-	correct_rollback(&ts);
+	  px4_clock_gettime(CLOCK_MONOTONIC, &ts);
+	  correct_rollback(&ts);
+	  if (locking_called){
+	    retry = ckp_read_unlock_persistent_mem(ckpfid,ckpid);
+	  }
+	} while (retry);
+	
 	return ts_to_abstime(&ts) - px4_timestart;
 #endif
 }
@@ -354,9 +347,11 @@ static int ckp_rollback_delay_corrected=0;
  */
 hrt_abstime hrt_absolute_time(void)
 {
+  int called__hrt_time_interval=0;
 	pthread_mutex_lock(&_hrt_mutex);
 
 	hrt_abstime ret;
+	//hrt_abstime rollback_abs;
 
 	if (!ckp_rollback_delay_corrected && ckp_rollback_timestamp != NULL &&
 	    ckp_rollback_timestamp->tv_sec != 0 &&
@@ -364,20 +359,25 @@ hrt_abstime hrt_absolute_time(void)
 	  ckp_rollback_delay_corrected=1;
 	  if (_start_delay_time > 0){
 	    printf("** DEBUG rollback during active delay\n");
+	    //adjust start delay in microseconds
+	    // ** ADJUSTMENT NOT WORKING
+	    // rollback_abs = ts_to_abstime(ckp_rollback_timestamp);
+	    //_start_delay_time = _start_delay_time - rollback_abs;
 	  }
 	}
 	
 	if (_start_delay_time > 0) {
 		ret = _start_delay_time;
-
+		called__hrt_time_interval = 0;
 	} else {
 		ret = _hrt_absolute_time_internal();
+		called__hrt_time_interval = 1;
 	}
 
 	ret -= _delay_interval;
 
 	if (ret < max_time) {
-		PX4_ERR("WARNING! TIME IS NEGATIVE! %d vs %d", (int)ret, (int)max_time);
+	  PX4_ERR("WARNING! TIME IS NEGATIVE! %d vs %d. %s", (int)ret, (int)max_time,(called__hrt_time_interval?"CALLED rollback corrected time":"DID NOT CALLED rollback corrected time"));
 		ret = max_time;
 	}
 

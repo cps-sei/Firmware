@@ -21,15 +21,17 @@ extern "C" __EXPORT int checkpoint_main(int argc, char *argv[]);
 // int ckpfid=-1;
 // int ckpid;
 
-static int get_timestamp(struct timespec *tp){
-	struct timeval now;
-	int rv = gettimeofday(&now, NULL);
-	if (rv){
-	  return rv;
-	}
-	tp->tv_sec = now.tv_sec;
-	tp->tv_nsec = now.tv_usec * 1000;
-	return 0;
+static int get_timestamp(int cfid, struct timespec *tp){
+	// struct timeval now;
+	// int rv = gettimeofday(&now, NULL);
+	// if (rv){
+	//   return rv;
+	// }
+	// tp->tv_sec = now.tv_sec;
+	// tp->tv_nsec = now.tv_usec * 1000;
+
+  ckp_clock_gettime(cfid, 0,tp);
+  return 0;
 }
 
 static void do_save() {
@@ -70,7 +72,7 @@ static void do_save() {
 
   PX4_INFO("checkpoint: saving");
 
-  if (get_timestamp(ckp_checkpoint_timestamp)){
+  if (get_timestamp(ckpfid, ckp_checkpoint_timestamp)){
     printf("error getting timestamp\n");
   }
   
@@ -91,20 +93,20 @@ static void do_save() {
   }
 }
 
-static int rollback_signal_captured = 0;
-static void rollback_handler(int signo, siginfo_t *siginfo, void *ptr)
-{
-  //int ckpid  = siginfo->si_value.sival_int;
+//static int rollback_signal_captured = 0;
+// static void rollback_handler(int signo, siginfo_t *siginfo, void *ptr)
+// {
+//   //int ckpid  = siginfo->si_value.sival_int;
 
-  if (get_timestamp(ckp_rollback_timestamp)){
-    printf("error getting timestamp\n");
-  }
+//   if (get_timestamp(ckp_rollback_timestamp)){
+//     printf("error getting timestamp\n");
+//   }
 
-  if (ckp_rollback_signal_processed(ckpfid,ckpid)<0){
-    printf("error sending signal processed to the kernel\n");
-  }
-  printf("rollback signal received\n");
-}
+//   if (ckp_rollback_signal_processed(ckpfid,ckpid)<0){
+//     printf("error sending signal processed to the kernel\n");
+//   }
+//   printf("rollback signal received\n");
+// }
 
 static void do_restore() {
 
@@ -115,7 +117,7 @@ static void do_restore() {
 
   PX4_INFO("checkpoint: restoring");
 
-  if (get_timestamp(ckp_rollback_timestamp)){
+  if (get_timestamp(ckpfid, ckp_rollback_timestamp)){
     printf("error getting timestamp\n");
   }
 
@@ -133,8 +135,8 @@ static void do_restore() {
   }
 }
 
-static void do_timer(){
-  struct sigaction sa;
+static void do_timer(long secs, int periodic){
+  //struct sigaction sa;
   
   if (ckpfid <0){
     printf("checkpoint module not open\n");
@@ -143,50 +145,55 @@ static void do_timer(){
 
   PX4_INFO("checkpint: setting timer");
 
-  // moved to rollback_signal_handler
-  // if (get_timestamp(ckp_rollback_timestamp)){
-  //   printf("error getting timestamp\n");
-  // }
+  // if (!rollback_signal_captured){
+  //   rollback_signal_captured = 1;
 
-  if (!rollback_signal_captured){
-    rollback_signal_captured = 1;
+  //   sa.sa_sigaction = rollback_handler;
+  //   sa.sa_flags = SA_RESTART;
+  //   sigfillset(&sa.sa_mask);
+  //   sa.sa_flags |= SA_SIGINFO;
 
-    sa.sa_sigaction = rollback_handler;
-    sa.sa_flags = SA_RESTART;
-    sigfillset(&sa.sa_mask);
-    sa.sa_flags |= SA_SIGINFO;
-
-    if (sigaction(ROLLBACK_SIGNO, &sa, NULL) <0){
-      printf("sigaction error\n");
-    }
+  //   if (sigaction(ROLLBACK_SIGNO, &sa, NULL) <0){
+  //     printf("sigaction error\n");
+  //   }
 
     
-    if (ckp_capture_rollback_signal(ckpfid,ckpid,gettid(),ROLLBACK_SIGNO)<0){
-      printf("Error capturing rollback signal\n");
-    } else {
-      printf("rollback signal captured\n");
-    }
-  }
+  //   if (ckp_capture_rollback_signal(ckpfid,ckpid,gettid(),ROLLBACK_SIGNO)<0){
+  //     printf("Error capturing rollback signal\n");
+  //   } else {
+  //     printf("rollback signal captured\n");
+  //   }
+  // }
 
   printf("rollback timestamp: %d s, %d ns\n",ckp_rollback_timestamp->tv_sec, ckp_rollback_timestamp->tv_nsec);
   printf("checkpoint timestamp: %d s, %d ns\n",ckp_checkpoint_timestamp->tv_sec, ckp_checkpoint_timestamp->tv_nsec);
 
-  if (ckp_set_rollback_timer(ckpfid, ckpid, 2,0)<0){
+  // program it as periodic
+  if (ckp_set_rollback_timer(ckpfid, ckpid, secs,0,periodic)<0){
     printf("could not set timer\n");
+    return;
+  }
+}
+
+static void do_stoptimer(){
+  if (ckp_stop_rollback_timer(ckpfid, ckpid)<0){
+    printf("could not stop timer\n");
     return;
   }
 }
 
 static int usage()
 {
-  PX4_WARN("usage: checkpoint {save|restore|timer}");
+  PX4_WARN("usage: checkpoint {save|restore|timer <secs> <periodic=1|0>|stop}");
   return 1;
 }
 
 
 int checkpoint_main(int argc, char *argv[])
 {
-  if (argc != 2) {
+  long secs;
+  int periodic;
+  if (argc < 2) {
     return usage();
   }
 
@@ -195,7 +202,14 @@ int checkpoint_main(int argc, char *argv[])
   } else if (!strcmp(argv[1], "restore")) {
     do_restore();
   } else if (!strcmp(argv[1],"timer")) {
-    do_timer();
+    if (argc != 4){
+      return usage();
+    }
+    secs = atol(argv[2]);
+    periodic = atoi(argv[3]);
+    do_timer(secs, periodic);
+  } else if (!strcmp(argv[1],"stop")){
+    do_stoptimer();
   } else {
     return usage();
   }
