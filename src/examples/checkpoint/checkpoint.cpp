@@ -93,20 +93,20 @@ static void do_save() {
   }
 }
 
-//static int rollback_signal_captured = 0;
-// static void rollback_handler(int signo, siginfo_t *siginfo, void *ptr)
-// {
-//   //int ckpid  = siginfo->si_value.sival_int;
+static int rollback_signal_captured = 0;
+static void rollback_handler(int signo, siginfo_t *siginfo, void *ptr)
+{
+  int cpid  = siginfo->si_value.sival_int;
 
-//   if (get_timestamp(ckp_rollback_timestamp)){
-//     printf("error getting timestamp\n");
-//   }
+  if (get_timestamp(ckpfid, ckp_rollback_timestamp)){
+    printf("error getting timestamp\n");
+  }
 
-//   if (ckp_rollback_signal_processed(ckpfid,ckpid)<0){
-//     printf("error sending signal processed to the kernel\n");
-//   }
-//   printf("rollback signal received\n");
-// }
+  if (ckp_rollback_signal_processed(ckpfid,cpid)<0){
+    printf("error sending signal processed to the kernel\n");
+  }
+  printf("rollback signal received\n");
+}
 
 static void do_restore() {
 
@@ -136,7 +136,7 @@ static void do_restore() {
 }
 
 static void do_timer(long secs, int periodic){
-  //struct sigaction sa;
+  struct sigaction sa;
   
   if (ckpfid <0){
     printf("checkpoint module not open\n");
@@ -145,25 +145,26 @@ static void do_timer(long secs, int periodic){
 
   PX4_INFO("checkpint: setting timer");
 
-  // if (!rollback_signal_captured){
-  //   rollback_signal_captured = 1;
+  //if (!rollback_signal_captured){
+  if (0){
+    rollback_signal_captured = 1;
 
-  //   sa.sa_sigaction = rollback_handler;
-  //   sa.sa_flags = SA_RESTART;
-  //   sigfillset(&sa.sa_mask);
-  //   sa.sa_flags |= SA_SIGINFO;
+    sa.sa_sigaction = rollback_handler;
+    sa.sa_flags = SA_RESTART;
+    sigfillset(&sa.sa_mask);
+    sa.sa_flags |= SA_SIGINFO;
 
-  //   if (sigaction(ROLLBACK_SIGNO, &sa, NULL) <0){
-  //     printf("sigaction error\n");
-  //   }
+    if (sigaction(ROLLBACK_SIGNO, &sa, NULL) <0){
+      printf("sigaction error\n");
+    }
 
     
-  //   if (ckp_capture_rollback_signal(ckpfid,ckpid,gettid(),ROLLBACK_SIGNO)<0){
-  //     printf("Error capturing rollback signal\n");
-  //   } else {
-  //     printf("rollback signal captured\n");
-  //   }
-  // }
+    if (ckp_capture_rollback_signal(ckpfid,ckpid,gettid(),ROLLBACK_SIGNO)<0){
+      printf("Error capturing rollback signal\n");
+    } else {
+      printf("rollback signal captured\n");
+    }
+  }
 
   printf("rollback timestamp: %d s, %d ns\n",ckp_rollback_timestamp->tv_sec, ckp_rollback_timestamp->tv_nsec);
   printf("checkpoint timestamp: %d s, %d ns\n",ckp_checkpoint_timestamp->tv_sec, ckp_checkpoint_timestamp->tv_nsec);

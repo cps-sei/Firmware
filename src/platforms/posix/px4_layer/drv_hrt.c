@@ -275,7 +275,7 @@ static void correct_rollback(struct timespec *tp)
 	       ckp_checkpoint_timestamp->tv_sec, ckp_checkpoint_timestamp->tv_nsec,
 	       ckp_rollback_timestamp->tv_sec, ckp_rollback_timestamp->tv_nsec);
 	printf("Rolled-backed: elapsed %d sec %d ns\n", elapsed.tv_sec,elapsed.tv_nsec);
-	printf("input %d sec, output %d sec\n", in.tv_sec, tp->tv_sec);
+	printf("input %d sec, %d ns: output %d sec, %d ns\n", in.tv_sec, in.tv_nsec, tp->tv_sec, tp->tv_nsec);
       }
     }
 
