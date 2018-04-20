@@ -2,6 +2,7 @@
 #include <sys/types.h>
 #include <syslog.h>
 #include <nuttx/progmem.h>
+#include <string.h>
 
 #include <systemlib/param/param.h>
 #include <uORB/topics/vehicle_command.h>
@@ -15,11 +16,20 @@ volatile bool snp_in_reboot = false;
 volatile bool snp_do_save = false;
 volatile bool snp_do_restore = false;
 
-#define SRAM_IMAGE_START	(0x08120000)
+#define FLASH_BEGIN (0x08004000)
+#define FLASH_SIZE  (2032 * 1024)
+
 #define SRAM_IMAGE_SIZE		(0x30000)
-#define SRAM_IMAGE_END		(SRAM_IMAGE_START + SRAM_IMAGE_SIZE)
-#define CCRAM_IMAGE_START	(0x08160000)
 #define CCRAM_IMAGE_SIZE	(0x8000)
+
+#if 0
+#define SRAM_IMAGE_START	(0x08120000)
+#define CCRAM_IMAGE_START	(0x08160000)
+#else
+#define SRAM_IMAGE_START	(FLASH_BEGIN + FLASH_SIZE - (SRAM_IMAGE_SIZE + CCRAM_IMAGE_SIZE))
+#define CCRAM_IMAGE_START	(FLASH_BEGIN + FLASH_SIZE - (CCRAM_IMAGE_SIZE))
+#endif
+#define SRAM_IMAGE_END		(SRAM_IMAGE_START + SRAM_IMAGE_SIZE)
 #define CCRAM_IMAGE_END		(CCRAM_IMAGE_START + CCRAM_IMAGE_SIZE)
 
 void prepare_for_reboot(void);
@@ -77,7 +87,6 @@ void stm32_do_restore(void)
 
 	asm volatile("dsb" ::: "memory");
 }
-#endif
 
 bool px4io_done;
 
@@ -218,7 +227,7 @@ void poll_reboot(void)
 		}
 	}
 
-	if (t2 - t > period) {
+	if (t2 - t > (uint32_t) period) {
 		poll_rc_channels();
 		poll_manual_control_setpoint();
 		if (reboot_request) {
@@ -244,6 +253,7 @@ void poll_snapshot(void)
 		}
 	}
 }
+#endif
 
 #if 0
 #include <stdint.h>
