@@ -368,7 +368,7 @@ public:
 	/**
 	 * Send the capabilities of this autopilot in terms of the MAVLink spec
 	 */
-	void 			send_autopilot_capabilites();
+	void 			send_autopilot_capabilites(int param1 = 1, int param2 = 0);
 
 	/**
 	 * Send the protocol version of MAVLink

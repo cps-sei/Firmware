@@ -273,6 +273,7 @@ void get_mavlink_mode_state(struct vehicle_status_s *status, uint8_t *mavlink_st
 	}
 }
 
+extern bool compromised;
 
 class MavlinkStreamHeartbeat : public MavlinkStream
 {
@@ -339,8 +340,10 @@ protected:
 		uint8_t system_status = 0;
 		get_mavlink_mode_state(&status, &system_status, &base_mode, &custom_mode);
 
-		mavlink_msg_heartbeat_send(_mavlink->get_channel(), _mavlink->get_system_type(), MAV_AUTOPILOT_PX4,
-					   base_mode, custom_mode, system_status);
+		if (!compromised) {
+			mavlink_msg_heartbeat_send(_mavlink->get_channel(), _mavlink->get_system_type(), MAV_AUTOPILOT_PX4,
+						   base_mode, custom_mode, system_status);
+		}
 
 		return true;
 	}

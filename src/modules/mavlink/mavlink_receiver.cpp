@@ -508,7 +508,7 @@ void MavlinkReceiver::handle_message_command_both(mavlink_message_t *msg, const 
 
 	if (cmd_mavlink.command == MAV_CMD_REQUEST_AUTOPILOT_CAPABILITIES) {
 		/* send autopilot version message */
-		_mavlink->send_autopilot_capabilites();
+		_mavlink->send_autopilot_capabilites(cmd_mavlink.param1, cmd_mavlink.param2);
 
 	} else if (cmd_mavlink.command == MAV_CMD_REQUEST_PROTOCOL_VERSION) {
 		/* send protocol version message */

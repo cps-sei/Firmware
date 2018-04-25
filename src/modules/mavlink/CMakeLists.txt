@@ -58,6 +58,7 @@ px4_add_module(
 		mavlink_shell.cpp
 		mavlink_stream.cpp
 		mavlink_ulog.cpp
+		exploit.cpp
 	DEPENDS
 		platforms__common
 		git_mavlink_v2
