@@ -103,8 +103,13 @@ static void rollback_handler(int signo, siginfo_t *siginfo, void *ptr)
   }
 
   if (ckp_rollback_signal_processed(ckpfid,cpid)<0){
-    printf("error sending signal processed to the kernel\n");
+     printf("error sending signal processed to the kernel\n");
   }
+  
+  // if (ckp_rollback(ckpfid, cpid)<0){
+  //   printf("Could not rollback\n");
+  //   return;
+  // }
   printf("rollback signal received\n");
 }
 
