@@ -44,7 +44,7 @@ int stm32_do_save(void)
 
 	//SAVE SNAPSHOT
 	if (*(uint32_t *)SRAM_IMAGE_START != 0xffffffff) {
-	  syslog(LOG_ERR, "section already used\n");
+		syslog(LOG_ERR, "section already used\n");
 		return -1;
 	}
 
@@ -104,7 +104,7 @@ void prepare_for_reboot(void)
 	param_t sys_id_param = param_find("MAV_SYS_ID");
 	param_t comp_id_param = param_find("MAV_COMP_ID");
 
-	memset(&rearm_cmd, 0, sizeof (rearm_cmd));
+	memset(&rearm_cmd, 0, sizeof(rearm_cmd));
 	com_pub = orb_advertise_queue(ORB_ID(vehicle_command),
 				      &rearm_cmd,
 				      ORB_QUEUE_LENGTH);
@@ -158,7 +158,8 @@ extern bool mavlink_boot_complete(void);
 static bool snapshot_request = false;
 static bool reboot_request = false;
 
-static void poll_rc_channels(void) {
+static void poll_rc_channels(void)
+{
 	static int sub = 0;
 
 	bool updated = false;
@@ -185,7 +186,8 @@ static void poll_rc_channels(void) {
 	}
 }
 
-static void poll_manual_control_setpoint(void) {
+static void poll_manual_control_setpoint(void)
+{
 	static int sub = 0;
 
 	bool updated = false;
@@ -215,13 +217,14 @@ void poll_reboot(void)
 	if (!mavlink_boot_complete()) {
 		return;
 	}
-	
+
 	t2 = cycletime();
 
 	// check for param update every 2 seconds
 	if (period == -1 || t2 - last_param_get > 2000000) {
 		param_get(param_find("YL_REBOOT_PERIOD"), &period);
 		last_param_get = cycletime();
+
 		if (period < 1000000) {
 			period = 1000000;
 		}
@@ -230,6 +233,7 @@ void poll_reboot(void)
 	if (t2 - t > (uint32_t) period) {
 		poll_rc_channels();
 		poll_manual_control_setpoint();
+
 		if (reboot_request) {
 			t = cycletime();
 			snp_do_restore = true;
@@ -246,6 +250,7 @@ void poll_snapshot(void)
 	if (!snapshot_taken) {
 		poll_rc_channels();
 		poll_manual_control_setpoint();
+
 		if (snapshot_request) {
 			snp_do_save = true;
 			snapshot_taken = true;
@@ -268,10 +273,10 @@ void poll_snapshot(void)
 
 uintptr_t __stack_chk_guard = STACK_CHK_GUARD;
 __attribute__((noreturn))
-	void __stack_chk_fail(void);
+void __stack_chk_fail(void);
 
 __attribute__((noreturn))
-	void __stack_chk_fail(void)
+void __stack_chk_fail(void)
 {
 #if __STDC_HOSTED__
 	abort();

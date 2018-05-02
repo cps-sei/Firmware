@@ -44,6 +44,7 @@
 #include <px4_shutdown.h>
 #include <systemlib/systemlib.h>
 #include <string.h>
+#include <drivers/drv_hrt.h>
 
 #include <stdbool.h>
 #include <syslog.h>
@@ -63,13 +64,20 @@ static void print_usage(void)
 
 	PRINT_MODULE_USAGE_NAME_SIMPLE("reboot", "command");
 	PRINT_MODULE_USAGE_PARAM_FLAG('b', "Reboot into bootloader", true);
+#ifdef __PX4_NUTTX
 	PRINT_MODULE_USAGE_PARAM_FLAG('d', "Done (stop logging debug info)", true);
 	PRINT_MODULE_USAGE_PARAM_FLAG('s', "Take snapshot (can only be done once)", true);
 	PRINT_MODULE_USAGE_PARAM_FLAG('r', "Restore the snapshot state", true);
 	PRINT_MODULE_USAGE_PARAM_FLAG('w', "Warm reboot", true);
-
+#endif
 	PRINT_MODULE_USAGE_ARG("lock|unlock", "Take/release the shutdown lock (for testing)", true);
 }
+
+#ifdef __PX4_NUTTX
+static const char *OPTIONS = "bdsrw";
+#else
+static const char *OPTIONS = "b";
+#endif
 
 int reboot_main(int argc, char *argv[])
 {
@@ -79,13 +87,15 @@ int reboot_main(int argc, char *argv[])
 	int myoptind = 1;
 	const char *myoptarg = NULL;
 
-	while ((ch = px4_getopt(argc, argv, "bdsrw", &myoptind, &myoptarg)) != -1) {
+	while ((ch = px4_getopt(argc, argv, OPTIONS, &myoptind, &myoptarg)) != -1) {
 		switch (ch) {
 		case 'b':
 			to_bootloader = true;
 			break;
+#ifdef __PX4_NUTTX
+
 		case 'd': /* done (stop logging debug info) */
-		  syslog(LOG_INFO, "snp_in_reboot was: %d\n", snp_in_reboot);
+			syslog(LOG_INFO, "snp_in_reboot was: %d\n", snp_in_reboot);
 			snp_in_reboot = false;
 			return 0;
 
@@ -107,22 +117,24 @@ int reboot_main(int argc, char *argv[])
 				uint32_t addr;
 #define NVIC_ICER_S	(0xE000E180)
 #define NVIC_ICER_E	(0xE000E1C0)
+
 				for (addr = NVIC_ICER_S;
 				     addr < NVIC_ICER_E;
 				     addr += 4) {
 					*(volatile uint32_t *)addr = 0xFFFFFFFF;
 				}
+
 #define SYST_CSR	(0xE000E010)
 				addr = SYST_CSR;
 				*(volatile uint32_t *)addr = 0x0;
 			}
 			{
-			uint32_t primask, faultmask, basepri;
-			asm volatile("mrs %0, PRIMASK" : "=r"(primask));
-			asm volatile("mrs %0, FAULTMASK" : "=r"(faultmask));
-			asm volatile("mrs %0, BASEPRI" : "=r"(basepri));
-			syslog(LOG_INFO, "primask: %x, faultmask: %x, basepri: %x\n",
-			       primask, faultmask, basepri);
+				uint32_t primask, faultmask, basepri;
+				asm volatile("mrs %0, PRIMASK" : "=r"(primask));
+				asm volatile("mrs %0, FAULTMASK" : "=r"(faultmask));
+				asm volatile("mrs %0, BASEPRI" : "=r"(basepri));
+				syslog(LOG_INFO, "primask: %x, faultmask: %x, basepri: %x\n",
+				       primask, faultmask, basepri);
 			}
 			asm volatile("cpsie i");
 
@@ -134,11 +146,15 @@ int reboot_main(int argc, char *argv[])
 				     "bx %1\n"
 				     :
 				     : "r"(*(uint32_t *)0x08004000),
-				       "r"(*(uint32_t *)0x08004004));
+				     "r"(*(uint32_t *)0x08004004));
+
 			for (;;);
+
 			break;
+#endif
 
 		default:
+			printf("hrt=%"PRIu64"\n", hrt_absolute_time());
 			print_usage();
 			return 1;
 

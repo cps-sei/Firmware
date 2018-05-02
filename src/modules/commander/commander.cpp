@@ -2067,7 +2067,7 @@ Commander::run()
 
 		// Perform a separate timeout validity test on the global position data.
 		// This is necessary because the global position message is by definition valid if published.
-		if ((hrt_absolute_time() - gpos_last_update_time_us) > 1000000) {
+		if (false && (hrt_absolute_time() - gpos_last_update_time_us) > 1000000) { // Dio:
 			status_flags.condition_global_position_valid = false;
 			status_flags.condition_global_velocity_valid = false;
 		}
@@ -2424,7 +2424,8 @@ Commander::run()
 			}
 
 			// Check fix type and data freshness
-			if (gps_position.fix_type >= 3 && hrt_elapsed_time(&gps_position.timestamp) < FAILSAFE_DEFAULT_TIMEOUT) {
+			// Dio: disable to tolerate reboots
+			if (true){//gps_position.fix_type >= 3 && hrt_elapsed_time(&gps_position.timestamp) < FAILSAFE_DEFAULT_TIMEOUT) {
 				/* handle the case where gps was regained */
 				if (status_flags.gps_failure && !gpsIsNoisy) {
 					status_flags.gps_failure = false;

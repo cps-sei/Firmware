@@ -147,12 +147,89 @@ uint64_t hrt_system_time(void)
 }
 #endif
 
+#ifdef UREBOOT_HOME
+// Dio: to enable going back in time after a
+// rollback
+
+#include <sys/time.h>
+#include <checkpointapi.h>
+
+struct timespec *ckp_checkpoint_timestamp = NULL;
+struct timespec *ckp_rollback_timestamp = NULL;
+int ckpfid = -1;
+int ckpid = -1;
+static int ckp_rollback_delay_corrected = 0;
+
+static void timespec_diff(struct timespec *start, struct timespec *stop, struct timespec *result)
+{
+	//if ((stop->tv_nsec - start->tv_nsec) < 0) {
+	if (stop->tv_nsec < start->tv_nsec) {
+		result->tv_sec = stop->tv_sec - start->tv_sec - 1;
+		result->tv_nsec = stop->tv_nsec - start->tv_nsec + 1000000000;
+		//result->tv_nsec = (stop->tv_nsec + 1000000000) - start->tv_nsec;
+
+	} else {
+		result->tv_sec = stop->tv_sec - start->tv_sec;
+		result->tv_nsec = stop->tv_nsec - start->tv_nsec;
+	}
+}
+
+static int printed_rollback_info = 0;
+
+static void correct_rollback(struct timespec *tp)
+{
+	struct timespec elapsed;
+	struct timespec in;
+	//int retry=0;
+	//int locking_called=0;
+
+	memcpy(&in, tp, sizeof(struct timespec));
+
+	//  do{
+
+	// lock persistent state
+	/* if (ckpfid != -1 && ckpid != -1){ */
+	/*   locking_called=1; */
+	/*   if (ckp_read_lock_persistent_mem(ckpfid,ckpid)){ */
+	/* 	printf("drv_hrt.c:correct_rollback(): ERROR locking checkpoint persistent memory\n"); */
+	/*   } */
+	/* } */
+
+	if (ckp_rollback_timestamp != NULL &&
+	    (ckp_rollback_timestamp->tv_sec != 0 ||
+	     ckp_rollback_timestamp->tv_nsec != 0)) {
+
+		timespec_diff(ckp_checkpoint_timestamp, ckp_rollback_timestamp, &elapsed);
+		timespec_diff(&elapsed, tp, tp);
+
+		if (!printed_rollback_info) {
+			printed_rollback_info = 1;
+			printf("correct_rollback(): checkpoint: %d s, %d ns | rollback: %d s, %d ns\n",
+			       ckp_checkpoint_timestamp->tv_sec, ckp_checkpoint_timestamp->tv_nsec,
+			       ckp_rollback_timestamp->tv_sec, ckp_rollback_timestamp->tv_nsec);
+			printf("Rolled-backed: elapsed %d sec %d ns\n", elapsed.tv_sec, elapsed.tv_nsec);
+			printf("input %d sec, %d ns: output %d sec, %d ns\n", in.tv_sec, in.tv_nsec, tp->tv_sec, tp->tv_nsec);
+		}
+	}
+
+	//if (ckpfid != -1){
+	/* if (locking_called){ */
+	/*   retry = ckp_read_unlock_persistent_mem(ckpfid,ckpid); */
+	/* } */
+	//}while (retry);
+}
+#endif
+
 /*
  * Get absolute time.
  */
 hrt_abstime _hrt_absolute_time_internal(void)
 {
 	struct timespec ts;
+#ifdef UREBOOT_HOME
+	int retry = 0;
+	int locking_called = 0;
+#endif
 
 #if defined(__PX4_QURT)
 	// Don't use the timestart on the DSP on Snapdragon because we manually
@@ -164,6 +241,35 @@ hrt_abstime _hrt_absolute_time_internal(void)
 	// Don't do any offseting on the Linux side on the Snapdragon.
 	px4_clock_gettime(CLOCK_MONOTONIC, &ts);
 	return ts_to_abstime(&ts);
+
+#elif defined(UREBOOT_HOME)
+
+	// Dio: this is the config that is active
+	//printf("IN: _hrt_absolute_time_internal()\n");
+	do {
+		if (ckpfid != -1 && ckpid != -1) {
+			locking_called = 1;
+
+			if (ckp_read_lock_persistent_mem(ckpfid, ckpid)) {
+				printf("drv_hrt.c:correct_rollback(): ERROR locking checkpoint persistent memory\n");
+			}
+		}
+
+		if (!px4_timestart) {
+			px4_clock_gettime(CLOCK_MONOTONIC, &ts);
+			correct_rollback(&ts);
+			px4_timestart = ts_to_abstime(&ts);
+		}
+
+		px4_clock_gettime(CLOCK_MONOTONIC, &ts);
+		correct_rollback(&ts);
+
+		if (locking_called) {
+			retry = ckp_read_unlock_persistent_mem(ckpfid, ckpid);
+		}
+	} while (retry);
+
+	return ts_to_abstime(&ts) - px4_timestart;
 
 #else
 
@@ -185,11 +291,57 @@ int hrt_set_absolute_time_offset(int32_t time_diff_us)
 }
 #endif
 
+#ifdef UREBOOT_HOME
+#endif
+
 /*
  * Get absolute time.
  */
 hrt_abstime hrt_absolute_time(void)
 {
+#ifdef UREBOOT_HOME
+	int called__hrt_time_interval = 0;
+	pthread_mutex_lock(&_hrt_mutex);
+
+	hrt_abstime ret;
+	//hrt_abstime rollback_abs;
+
+	if (!ckp_rollback_delay_corrected && ckp_rollback_timestamp != NULL &&
+	    ckp_rollback_timestamp->tv_sec != 0 &&
+	    ckp_rollback_timestamp->tv_nsec != 0) {
+		ckp_rollback_delay_corrected = 1;
+
+		if (_start_delay_time > 0) {
+			printf("** DEBUG rollback during active delay\n");
+			//adjust start delay in microseconds
+			// ** ADJUSTMENT NOT WORKING
+			// rollback_abs = ts_to_abstime(ckp_rollback_timestamp);
+			//_start_delay_time = _start_delay_time - rollback_abs;
+		}
+	}
+
+	if (_start_delay_time > 0) {
+		ret = _start_delay_time;
+		called__hrt_time_interval = 0;
+
+	} else {
+		ret = _hrt_absolute_time_internal();
+		called__hrt_time_interval = 1;
+	}
+
+	ret -= _delay_interval;
+
+	if (ret < max_time) {
+		PX4_ERR("WARNING! TIME IS NEGATIVE! %d vs %d. %s", (int)ret, (int)max_time,
+			(called__hrt_time_interval ? "CALLED rollback corrected time" : "DID NOT CALLED rollback corrected time"));
+		ret = max_time;
+	}
+
+	max_time = ret;
+	pthread_mutex_unlock(&_hrt_mutex);
+
+	return ret;
+#else
 	pthread_mutex_lock(&_hrt_mutex);
 
 	hrt_abstime ret;
@@ -212,6 +364,7 @@ hrt_abstime hrt_absolute_time(void)
 	pthread_mutex_unlock(&_hrt_mutex);
 
 	return ret;
+#endif
 }
 
 __EXPORT hrt_abstime hrt_reset(void)

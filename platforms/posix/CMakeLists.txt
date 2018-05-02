@@ -1,6 +1,6 @@
 include (common/px4_upload)
 
-include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${CMAKE_CURRENT_BINARY_DIR} ${UREBOOT_HOME}/checkpoint ${PX4_SOURCE_DIR}/src/examples/checkpoint)
 
 get_property(module_libraries GLOBAL PROPERTY PX4_LIBRARIES)
 

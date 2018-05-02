@@ -12,11 +12,18 @@ function(px4_add_sitl_app)
 			)
 
 	if (NOT APPLE)
+		set(extra_libraries_list)
+		if (UREBOOT_HOME)
+			target_link_libraries(${APP_NAME}
+				-L${UREBOOT_HOME}/checkpoint/lib)
+			list(APPEND extra_libraries_list ckp)
+		endif()
 		target_link_libraries(${APP_NAME}
 			-Wl,--start-group
 			${module_libraries}
 			${df_driver_libs}
 			pthread m rt
+			${extra_libraries_list}
 			-Wl,--end-group
 			)
 	else()
