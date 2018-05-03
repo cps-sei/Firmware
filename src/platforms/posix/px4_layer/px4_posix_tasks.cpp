@@ -60,7 +60,7 @@
 #include <px4_posix.h>
 #include <systemlib/err.h>
 
-#ifdef UREBOOT_HOME
+#ifdef USE_UREBOOT
 // Dio: To enable checkpoint/rollback
 extern "C" {
 #include <checkpointapi.h>
@@ -105,7 +105,7 @@ static void *entry_adapter(void *ptr)
 
 	int rv;
 
-#ifdef UREBOOT_HOME
+#ifdef USE_UREBOOT
 	int tid = gettid();
 	cpu_set_t mask;
 

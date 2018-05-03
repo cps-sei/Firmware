@@ -147,7 +147,7 @@ uint64_t hrt_system_time(void)
 }
 #endif
 
-#ifdef UREBOOT_HOME
+#ifdef USE_UREBOOT
 // Dio: to enable going back in time after a
 // rollback
 
@@ -226,7 +226,7 @@ static void correct_rollback(struct timespec *tp)
 hrt_abstime _hrt_absolute_time_internal(void)
 {
 	struct timespec ts;
-#ifdef UREBOOT_HOME
+#ifdef USE_UREBOOT
 	int retry = 0;
 	int locking_called = 0;
 #endif
@@ -242,7 +242,7 @@ hrt_abstime _hrt_absolute_time_internal(void)
 	px4_clock_gettime(CLOCK_MONOTONIC, &ts);
 	return ts_to_abstime(&ts);
 
-#elif defined(UREBOOT_HOME)
+#elif defined(USE_UREBOOT)
 
 	// Dio: this is the config that is active
 	//printf("IN: _hrt_absolute_time_internal()\n");
@@ -291,7 +291,7 @@ int hrt_set_absolute_time_offset(int32_t time_diff_us)
 }
 #endif
 
-#ifdef UREBOOT_HOME
+#ifdef USE_UREBOOT
 #endif
 
 /*
@@ -299,7 +299,7 @@ int hrt_set_absolute_time_offset(int32_t time_diff_us)
  */
 hrt_abstime hrt_absolute_time(void)
 {
-#ifdef UREBOOT_HOME
+#ifdef USE_UREBOOT
 	int called__hrt_time_interval = 0;
 	pthread_mutex_lock(&_hrt_mutex);
 

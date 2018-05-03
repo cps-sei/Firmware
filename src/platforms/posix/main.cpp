@@ -54,7 +54,7 @@
 #include <termios.h>
 #include <sys/stat.h>
 
-#ifdef UREBOOT_HOME
+#ifdef USE_UREBOOT
 #include <sys/time.h>
 
 // to enable CPU affiliation
@@ -313,7 +313,7 @@ int main(int argc, char **argv)
 	bool daemon_mode = false;
 	bool chroot_on = false;
 
-#ifdef UREBOOT_HOME
+#ifdef USE_UREBOOT
 	int tid = gettid();
 	cpu_set_t mask;
 
