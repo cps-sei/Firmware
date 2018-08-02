@@ -5,14 +5,14 @@
 - Connect Navio2 to machine that will run the simulator
   - Use one [6-pin cable](https://store.emlid.com/product/wire-pack-for-navio2/) connected to the UART port on the Navio2
   - Use a USB to TTL Serial cable (e.g., [this one](https://www.adafruit.com/product/954)), making the following connections to the Navio2 cable using [male jumper wires](https://www.adafruit.com/product/1956). **Do not connect the red wire**
-```  
+  
   | Navio2 UART | USB TTL Serial |
   |-------------|----------------|
   | GND         | GND            |
   | RX          | TX             |
   | TX          | RX             |
-```  
-  - Connect USB cable to machine that will run the simulator
+
+- Connect USB cable to the machine that will run the simulator
 
 ## PX4 Software Setup
 - Configure RPI with Navio2 as described [here](https://docs.emlid.com/navio2/common/ardupilot/configuring-raspberry-pi/) or more specifically for PX4 [here](https://docs.px4.io/en/flight_controller/raspberry_pi_navio2.html)
