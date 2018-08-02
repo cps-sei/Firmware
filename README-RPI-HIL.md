@@ -25,8 +25,8 @@
         key_mgmt=NONE
         mode=0
         ssid="CMU"
-}
-```
+  }
+  ```
 - We're going to build PX4 natively on the RPI, so follow these instructions to install all the dependencies
 - Disable modem manager
 ```
