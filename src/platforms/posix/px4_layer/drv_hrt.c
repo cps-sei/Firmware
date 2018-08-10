@@ -256,6 +256,7 @@ hrt_abstime _hrt_absolute_time_internal(void)
 		}
 
 		if (!px4_timestart) {
+			printf("setting px4_timestart\n");
 			px4_clock_gettime(CLOCK_MONOTONIC, &ts);
 			correct_rollback(&ts);
 			px4_timestart = ts_to_abstime(&ts);
@@ -263,6 +264,7 @@ hrt_abstime _hrt_absolute_time_internal(void)
 
 		px4_clock_gettime(CLOCK_MONOTONIC, &ts);
 		correct_rollback(&ts);
+
 
 		if (locking_called) {
 			retry = ckp_read_unlock_persistent_mem(ckpfid, ckpid);
@@ -332,6 +334,7 @@ hrt_abstime hrt_absolute_time(void)
 	ret -= _delay_interval;
 
 	if (ret < max_time) {
+		printf("ret = %"PRIu64", max = %"PRIu64" delay=%"PRIu64"\n", ret, max_time, _delay_interval);
 		PX4_ERR("WARNING! TIME IS NEGATIVE! %d vs %d. %s", (int)ret, (int)max_time,
 			(called__hrt_time_interval ? "CALLED rollback corrected time" : "DID NOT CALLED rollback corrected time"));
 		ret = max_time;

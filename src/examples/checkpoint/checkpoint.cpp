@@ -8,6 +8,7 @@
 #include <sys/time.h>
 #include <sys/mman.h>
 #include <signal.h>
+#include <drivers/drv_hrt.h>
 
 extern "C" {
 #include <checkpointapi.h>
@@ -82,6 +83,8 @@ static void do_save()
 		printf("error getting timestamp\n");
 	}
 
+	hrt_abstime ckp_time = hrt_absolute_time();
+
 	if ((ckpid = ckp_create_checkpoint(ckpfid, getpid(), ckp_rollback_timestamp, sizeof(struct timespec))) < 0) {
 		printf("could not create the checkpoint\n");
 		//return;
@@ -96,6 +99,7 @@ static void do_save()
 		// hrt_start_delay();
 
 	} else {
+		printf("hrt_absolute_time = %" PRIu64 "\n", ckp_time);
 		printf("Just created checkpoint or rollback timestamp not restored\n");
 	}
 }
