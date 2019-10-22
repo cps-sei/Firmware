@@ -20,6 +20,9 @@ if [ -z ${PX4_DOCKER_REPO+x} ]; then
 	elif [[ $@ =~ .*tests* ]]; then
 		# run all tests with simulation
 		PX4_DOCKER_REPO="px4io/px4-dev-simulation:2019-07-29"
+	elif [[ $@ =~ .*sitl* ]]; then
+		# run all tests with simulation
+		PX4_DOCKER_REPO="px4io/px4-dev-simulation:2019-07-29"
 	fi
 else
 	echo "PX4_DOCKER_REPO is set to '$PX4_DOCKER_REPO'";
@@ -46,6 +49,31 @@ SRC_DIR=$PWD/../
 CCACHE_DIR=${HOME}/.ccache
 mkdir -p "${CCACHE_DIR}"
 
+DEFAULTPUB=
+#"--publish 14570:14570/udp"
+
+HAS_EXTRA_ARGS=0
+EXTRA_ARGS=""
+for a in "$@"
+do
+    if [ "$a" == "--" ]; then
+	HAS_EXTRA_ARGS=1
+	break
+    fi
+done
+if [ $HAS_EXTRA_ARGS == 1 ]; then
+    DEFAULTPUB=""
+    for a in "$@"
+    do
+	if [ "$a" == "--" ]; then
+	    shift
+	    break;
+	fi
+	EXTRA_ARGS="$EXTRA_ARGS $a"
+	shift
+    done
+fi
+
 docker run -it --rm -w "${SRC_DIR}" \
 	--env=AWS_ACCESS_KEY_ID \
 	--env=AWS_SECRET_ACCESS_KEY \
@@ -61,7 +89,9 @@ docker run -it --rm -w "${SRC_DIR}" \
 	--env=PX4_UBSAN \
 	--env=TRAVIS_BRANCH \
 	--env=TRAVIS_BUILD_ID \
-	--publish 14556:14556/udp \
+	$DEFAULTPUB \
 	--volume=${CCACHE_DIR}:${CCACHE_DIR}:rw \
 	--volume=${SRC_DIR}:${SRC_DIR}:rw \
+	-e DISPLAY=host.docker.internal:0 \
+	$EXTRA_ARGS \
 	${PX4_DOCKER_REPO} /bin/bash -c "$1 $2 $3"

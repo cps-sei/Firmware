@@ -1,0 +1,32 @@
+version: '3'
+services:
+  jmavsim:
+    image: px4io/px4-dev-simulation:2019-07-29
+    volumes:
+    - ${PX4_ROOT}:${PX4_ROOT}
+    - ${HOME}/.ccache:/.ccache
+    environment:
+    - CCACHE_DIR=/.ccache
+    - LOCAL_USER_ID=${UID}
+    - DISPLAY=host.docker.internal:0
+    ports:
+    - "4560:4560"
+#    network_mode: host
+    entrypoint: /bin/bash -c 'cd ${PX4_ROOT}; Tools/jmavsim_run.sh -l'
+  px4:
+    image: px4io/px4-dev-simulation:2019-07-29
+    volumes:
+    - ${PX4_ROOT}:${PX4_ROOT}
+    - ${HOME}/.ccache:/.ccache
+    environment:
+    - CCACHE_DIR=/.ccache
+    - LOCAL_USER_ID=${UID}
+    - DISPLAY=host.docker.internal:0
+    stdin_open: true
+    tty: true
+#    network_mode: host
+    depends_on:
+    - jmavsim
+    entrypoint: /bin/bash -c 'cd ${PX4_ROOT}; make px4_sitl_default none'    
+    
+    

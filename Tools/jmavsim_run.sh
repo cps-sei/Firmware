@@ -44,7 +44,8 @@ while getopts ":b:d:p:qsr:f:i:l" opt; do
 done
 
 if [ "$device" == "" ]; then
-	device="-tcp $ip:$tcp_port"
+    #	device="-tcp $ip:$tcp_port"
+    	device="-udp $ip:$tcp_port"
 else
 	device="-serial $device $baudrate"
 fi
@@ -68,11 +69,11 @@ fi
 ant create_run_jar copy_res
 cd out/production
 
-java -XX:GCTimeRatio=20 -Djava.ext.dirs= -jar jmavsim_run.jar $device $extra_args
+java -Djavax.accessibility.assistive_technologies=" " -XX:GCTimeRatio=20 -Djava.ext.dirs= -jar jmavsim_run.jar $device $extra_args
 ret=$?
 if [ $ret -ne 0 -a $ret -ne 130 ]; then # 130 is Ctrl-C
 	# if the start of java fails, it's probably because the GC option is not
 	# understood. Try starting without it
-	java -Djava.ext.dirs= -jar jmavsim_run.jar $device $extra_args
+	java -Djavax.accessibility.assistive_technologies=" " -Djava.ext.dirs= -jar jmavsim_run.jar $device $extra_args
 fi
 
