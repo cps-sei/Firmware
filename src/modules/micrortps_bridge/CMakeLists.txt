@@ -40,10 +40,10 @@ if(NOT FASTRTPSGEN)
 	message(FATAL_ERROR "Unable to find fastrtpsgen")
 endif()
 
-if (EXISTS "${PX4_SOURCE_DIR}/msg/tools/uorb_rtps_message_ids.yaml")
+if (EXISTS "${PX4_SOURCE_DIR}/msg/tools/${RTPS_IDS_FILE}")
 	set(config_rtps_send_topics)
 	execute_process(
-		COMMAND ${PYTHON_EXECUTABLE} ${PX4_SOURCE_DIR}/msg/tools/uorb_rtps_classifier.py -sa
+		COMMAND ${PYTHON_EXECUTABLE} ${PX4_SOURCE_DIR}/msg/tools/uorb_rtps_classifier.py -sa --rtps-ids-file tools/${RTPS_IDS_FILE}
 		OUTPUT_VARIABLE config_rtps_send_topics
 	)
 	set(config_rtps_send_alias_topics "")
@@ -59,7 +59,7 @@ if (EXISTS "${PX4_SOURCE_DIR}/msg/tools/uorb_rtps_message_ids.yaml")
 
 	set(config_rtps_receive_topics)
 	execute_process(
-		COMMAND ${PYTHON_EXECUTABLE} ${PX4_SOURCE_DIR}/msg/tools/uorb_rtps_classifier.py -ra
+		COMMAND ${PYTHON_EXECUTABLE} ${PX4_SOURCE_DIR}/msg/tools/uorb_rtps_classifier.py -ra --rtps-ids-file tools/${RTPS_IDS_FILE}
 		OUTPUT_VARIABLE config_rtps_receive_topics
 	)
 	set(config_rtps_receive_alias_topics "")

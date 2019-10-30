@@ -101,3 +101,5 @@ if(REPLAY_FILE)
 else()
 	set(ENABLE_LOCKSTEP_SCHEDULER yes)
 endif()
+set(RTPS_IDS_FILE uorb_rtps_message_ids.yaml)
+
