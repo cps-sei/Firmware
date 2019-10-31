@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CONFIG=smain
+CONFIG=ssec
 
 SRC_DIR=$(cd `dirname $0`/..; pwd)
 
